@@ -235,7 +235,6 @@ for (i in 1:1000) {
   s <- sample_n(log_df, size = nrow(log_df), replace = TRUE)
   fit <- lm(s, formula = log_HomeRange_km2 ~ log_Body_mass_female_mean)
   tidy <- tidy(fit) %>% pull(estimate) -> results
-  
  names(results) <- tidy(fit)$term
  boot <- bind_rows(boot, results)
 }
@@ -265,13 +264,14 @@ se_beta1
 
 alpha <- 0.05
 
-ci <- predict(log_fit,
-  newdata = data.frame(log_Brain_Size_Species_Mean = seq(min(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), max(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), by = 1)),
+ci <- predict(fit,
+  newdata = data.frame(log_Body_mass_female_mean = seq(min(log_df$log_Body_mass_female_mean, na.rm = TRUE), max(log_df$log_Body_mass_female_mean, na.rm = TRUE), by = 1)),
   interval = "confidence", level = 1 - alpha
 )
 ci <- data.frame(ci)
-ci <- cbind(seq(min(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), max(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), by = 1), ci)
+ci <- cbind(seq(min(log_df$log_Body_mass_female_mean, na.rm = TRUE), max(log_df$log_Body_mass_female_mean, na.rm = TRUE), by = 1), ci)
 
+ci
 
 
 ```
