@@ -8,10 +8,11 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-
 library(tidyverse)
 library(broom)
 library(infer)
+library(mosaic)
+library(manipulate)
 
 ```
 
@@ -33,30 +34,11 @@ For this exercise, the end aim is to fit a simple linear regression model to pre
 r <- lm(MaxLongevity_m ~ Brain_Size_Species_Mean, data = k, level = 0.90)
 
 tidy(r) 
-  
-  
-
-  
 
 
-confint(r, level = 0.90)
-
-m.summary <- tidy(r) 
-
-raw <- ggplot(data = k, aes(x = Brain_Size_Species_Mean, y = MaxLongevity_m)) +
-            geom_point() + 
-            geom_smooth(method = "lm", formula = y ~ x, level = 0.90) +
-            geom_text(x = 200, y = 800, label = "y = 248.9523 + 1.218(Xi) + Ei")
-print(raw)
-
-
-fit <- lm(log(MaxLongevity_m) ~ log(Brain_Size_Species_Mean), data = k, level = 0.90)
-tidy(fit)
-log <- ggplot(data = k, aes(x = log(Brain_Size_Species_Mean), y = log(MaxLongevity_m))) +
-            geom_point() + 
-            geom_smooth(method = "lm", formula = y ~ x, level = 0.90) +
-              geom_text(x = 4.2, y = 5, label = "y = 4.87895 + 0.23415(Xi) + Ei, where E ~ (0, (0.2485) ^2")
-print(log)
+```
+Raw values:
+```{r}
 
 
 alpha <- 0.1
@@ -80,16 +62,41 @@ i <- cbind(ci, pi)
 head(i)
 
 names(i) <- c("weight", "c.fit", "c.lwr", "c.upr", "p.fit", "p.lwr", "p.upr")
-view(i)
 
 long <- pivot_longer(i, c.fit:p.upr, names_to = "model")
 
 g <- ggplot(data = k, aes(x = Brain_Size_Species_Mean, y = MaxLongevity_m)) +
   geom_point(alpha = 0.5) +
-  geom_line(data = long, aes(x = weight, y = value, group = model, color = model))
+  geom_line(data = long, aes(x = weight, y = value, group = model, color = model)) +
+  geom_text(x = 300, y = 200, label = "y = 248.95227 + 1.21799(Xi) + Ei")
+
 
 g
 
+```
+Some summary stats from the model:
+
+```{r}
+
+t <- tidy(r)
+print(t)
+c <- confint(r, level = 0.90)
+print(c)
+
+```
+beta1 = 1.21799
+
+beta0 = 248.95227
+
+beta1 does not equal zero so the null hypothesis is rejected, which indicates that species' longevity increases as a function of brain size. 
+
+90% confidence intervals for the slope are 1.035571 and 1.40041 
+
+Produce a point estimate and associated 90% prediction interval for the longevity of a species whose brain weight is 750 gm.
+
+```{r}
+
+m.summary <- tidy(r) 
 beta0 <- m.summary %>%
   filter(term == "(Intercept)") %>%
   pull(estimate)
@@ -98,45 +105,108 @@ beta1 <- m.summary %>%
   pull(estimate)
 (h.hat <- beta1 * 750 + beta0)
 
-
 ```
+Do you trust the model to predict observations accurately for this value of the explanatory variable? Why or why not?
 
-Identify and interpret the point estimate of the slope (β1), as well as the outcome of the test associated with the hypotheses H0:β1=0,HA:β1≠0. Also, find a 90% CI for the slope (β1) parameter.
+I do not trust this prediction very much because the the value of the explanatory value falls among those values of x that have the least trustworthy confidence intervals (the upper right portion of the graph). This is because the 4 points in this region are so different than the others, its hard to tell if they are pulling the line artificially. 
 
-
-longevity ~ brainsize:
-
-B1 = 1.218, p < 2e-16. Longevity is positively correlated with brainsize. 
-
+log values:
 ```{r}
 
 
+log(HomeRange_km2) ~ log(Body_mass_female_mean)
 
+#make new columns in the dataframe for log transformed values:
+
+log_df <- k %>% mutate(
+  log_MaxLongevity_m = log(MaxLongevity_m),
+  log_Brain_Size_Species_Mean = log(Brain_Size_Species_Mean),
+  log_HomeRange_km2 = log(HomeRange_km2),
+  log_Body_mass_female_mean = log(Body_mass_female_mean)
+)
+
+head(log_df)
+
+log_fit <- lm(log_MaxLongevity_m ~ log_Brain_Size_Species_Mean, data = log_df, level = 0.90)
+
+tidy(log_fit) 
+
+
+
+alpha <- 0.1
+ci <- predict(log_fit,
+  newdata = data.frame(log_Brain_Size_Species_Mean = seq(min(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), max(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), by = 1)),
+  interval = "confidence", level = 1 - alpha
+)
+ci <- data.frame(ci)
+ci <- cbind(seq(min(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), max(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), by = 1), ci)
+
+
+pi <- predict(log_fit,
+  newdata = data.frame(log_Brain_Size_Species_Mean = seq(min(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), max(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), by = 1)),
+  interval = "prediction", level = 1 - alpha
+)
+pi <- data.frame(pi)
+head(pi)
+
+
+i <- cbind(ci, pi)
+head(i)
+
+names(i) <- c("weight", "c.fit", "c.lwr", "c.upr", "p.fit", "p.lwr", "p.upr")
+
+long <- pivot_longer(i, c.fit:p.upr, names_to = "model")
+
+g <- ggplot(data = log_fit, aes(x = log_Brain_Size_Species_Mean, y = log_MaxLongevity_m)) +
+  geom_point(alpha = 0.5) +
+  geom_line(data = long, aes(x = weight, y = value, group = model, color = model)) +
+  geom_text(x = 4.2, y = 5, label = "y = 4.8789509 + 0.2341496(Xi) + Ei")
+
+g
 ```
-
-log(longevity) ~ log(brainsize):
-
-B1 = 0.23415, p < 2e-16. Longevity is positively correlated with brainsize. 
-
-
-
-Using your model, add lines for the 90% confidence and prediction interval bands on the plot, and add a legend to differentiate between the lines.
-
+Some summary stats from the model:
 
 ```{r}
 
-
-
-
+t <- tidy(log_fit)
+print(t)
+c <- confint(log_fit, level = 0.90)
+print(c)
 
 ```
+beta1 = 0.2341496
+
+beta0 = 4.8789509
+
+beta1 does not equal zero so the null hypothesis is rejected, which indicates that species' longevity increases as a function of brain size. 
+
+90% confidence intervals for the slope are 0.2046396 and 0.2636595 
 
 
 
-Produce a point estimate and associated 90% prediction interval for the longevity of a species whose brain weight is 750 gm. Do you trust the model to predict observations accurately for this value of the explanatory variable? Why or why not?
+Produce a point estimate and associated 90% prediction interval for the longevity of a species whose brain weight is 750 gm.
+
+```{r}
+
+m.summary <- tidy(log_fit) 
+beta0 <- m.summary %>%
+  filter(term == "(Intercept)") %>%
+  pull(estimate)
+beta1 <- m.summary %>%
+  filter(term == "log_Brain_Size_Species_Mean") %>%
+  pull(estimate)
+(h.hat <- beta1 * log(750) + beta0)
+
+```
+Do you trust the model to predict observations accurately for this value of the explanatory variable? Why or why not?
+
+I trust this prediction because the model has narrow confidence intervals. 
 
 
+Looking at your two models (i.e., untransformed versus log-log transformed), which do you think is better? Why?
 
+
+I think the log transformed model is more useful. The more narrow confidence intervals gives it more accurate predictions.
 
 
 
@@ -147,7 +217,7 @@ Using the “KamilarAndCooperData.csv” dataset, run a linear regression lookin
 
 ```{r}
 
-fit <- lm(log(HomeRange_km2) ~ log(Body_mass_female_mean), data = k)
+fit <- lm(log_HomeRange_km2 ~ log_Body_mass_female_mean, data = log_df)
 summary(fit)
 
 ```
@@ -159,25 +229,53 @@ Then, use bootstrapping to sample from the dataset 1000 times with replacement, 
 
 ```{r}
 
+boot <- tibble() 
 
-
-
-boot <- data.frame()
-
-  for (i in 1:1000) {
-  s <- sample_n(k, size = nrow(k), replace = TRUE)
-  fit <- lm(s, formula = log(HomeRange_km2) ~ log(Body_mass_female_mean))
-  tidy(fit) %>%
-  print(estimate) -> results
-  boot <- c(boot, results)
+for (i in 1:1000) {
+  s <- sample_n(log_df, size = nrow(log_df), replace = TRUE)
+  fit <- lm(s, formula = log_HomeRange_km2 ~ log_Body_mass_female_mean)
+  tidy <- tidy(fit) %>% pull(estimate) -> results
+  #names(results) <- c("beta0", "beta1")
+  
+ names(results) <- tidy(fit)$term
+ boot <- bind_rows(boot, results)
 }
 
 
-  
+names(boot) <- c("beta0", "beta1")
 boot
 
-```
 
+B0_hist <- ggplot(boot, aes(x = beta0)) +
+                  geom_histogram()
+
+B0_hist
+
+B1_hist <- ggplot(boot, aes(x = beta1)) +
+                  geom_histogram()
+
+B1_hist
+
+se_beta0 <- sd(boot$beta0)
+se_beta0
+
+se_beta1 <- sd(boot$beta1)
+se_beta1
+
+
+
+alpha <- 0.05
+
+ci <- predict(log_fit,
+  newdata = data.frame(log_Brain_Size_Species_Mean = seq(min(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), max(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), by = 1)),
+  interval = "confidence", level = 1 - alpha
+)
+ci <- data.frame(ci)
+ci <- cbind(seq(min(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), max(log_df$log_Brain_Size_Species_Mean, na.rm = TRUE), by = 1), ci)
+
+
+
+```
 
 # Challenge 3
 
@@ -196,27 +294,41 @@ Use your function to run the following models on the “KamilarAndCooperData.csv
 
   boot_lm <- function(d, model, conf.level = 0.95, reps = 1000) {
   
-  
+  og <- lm(d, formula = model)
+  results <- tidy(og) %>% pull(estimate)
+  names(results) <- tidy(og)$term
 
-   fit <- lm(d, formula = model)
-  tidy(fit, conf.int = TRUE, conf.level = conf.level)
 
-  
-
-boot <- tibble()
+boot <- tibble() 
 
 for (i in 1:reps) {
-  s <- sample_n(d, size = nrow(k), replace = TRUE)
-  fit <- lm(s, formula = model)
-  tidy(fit, conf.int = TRUE, conf.level = conf.level) %>%
-  pull(estimate) -> results
-  boot <- c(boot, results)
+  s <- sample_n(d, size = nrow(d), replace = TRUE)
+  boot_fit <- lm(s, formula = model)
+  tidy <- tidy(boot_fit) %>% pull(estimate)
+  names(results) <- tidy(boot_fit)$term
+  boot <- bind_rows(boot, results)
 }
 
 return(boot)
-  
+
 }
 
-m <- boot_lm(k, "log(HomeRange_km2) ~ log(Body_mass_female_mean)")
-view(m)
+
+  
+  
+  
+  
+
+
+```
+
+
+```{r}
+
+#m <- boot_lm(k, log(MaxLongevity_m) ~ log(Brain_Size_Species_Mean))
+#tidy(m)
+
+
+
+
 ```
