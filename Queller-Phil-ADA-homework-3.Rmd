@@ -235,7 +235,6 @@ for (i in 1:1000) {
   s <- sample_n(log_df, size = nrow(log_df), replace = TRUE)
   fit <- lm(s, formula = log_HomeRange_km2 ~ log_Body_mass_female_mean)
   tidy <- tidy(fit) %>% pull(estimate) -> results
-  #names(results) <- c("beta0", "beta1")
   
  names(results) <- tidy(fit)$term
  boot <- bind_rows(boot, results)
