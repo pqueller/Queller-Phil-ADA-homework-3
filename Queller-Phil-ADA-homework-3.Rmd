@@ -2,7 +2,9 @@
 title: "Queller-Phil-ADA-homework-3"
 author: "Phil Queller"
 date: "4/26/2020"
-output: html_document
+output:
+  html_document: default
+  word_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -11,8 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(broom)
 library(infer)
-library(mosaic)
-library(manipulate)
+library(radiant)
 
 ```
 
@@ -218,7 +219,10 @@ Using the “KamilarAndCooperData.csv” dataset, run a linear regression lookin
 ```{r}
 
 fit <- lm(log_HomeRange_km2 ~ log_Body_mass_female_mean, data = log_df)
-summary(fit)
+results <- tidy(fit, conf.int = TRUE, conf.level = .95) %>% 
+  select(term, estimate, std.error, conf.low, conf.high)
+head(results)
+
 
 ```
 B0 = -9.44123
@@ -254,27 +258,67 @@ B1_hist <- ggplot(boot, aes(x = beta1)) +
 
 B1_hist
 
+```
+Estimate the standard error for each of your β coefficients as the standard deviation of the sampling distribution from your bootstrap.
+
+```{r}
+
 se_beta0 <- sd(boot$beta0)
 se_beta0
 
 se_beta1 <- sd(boot$beta1)
 se_beta1
 
+```
+Also determine the 95% CI for each of your β coefficients based on the appropriate quantiles from your sampling distribution.
 
+```{r}
 
-alpha <- 0.05
+beta1_upr_ci <- quantile(boot$beta1, 0.975)
+beta1_upr_ci
+beta1_lwr_ci <- quantile(boot$beta1, 0.025)
+beta1_lwr_ci
 
-ci <- predict(fit,
-  newdata = data.frame(log_Body_mass_female_mean = seq(min(log_df$log_Body_mass_female_mean, na.rm = TRUE), max(log_df$log_Body_mass_female_mean, na.rm = TRUE), by = 1)),
-  interval = "confidence", level = 1 - alpha
-)
-ci <- data.frame(ci)
-ci <- cbind(seq(min(log_df$log_Body_mass_female_mean, na.rm = TRUE), max(log_df$log_Body_mass_female_mean, na.rm = TRUE), by = 1), ci)
-
-ci
-
+beta0_upr_ci <- quantile(boot$beta0, 0.975)
+beta0_upr_ci
+beta0_lwr_ci <- quantile(boot$beta0, 0.025)
+beta0_lwr_ci
 
 ```
+How do the SEs estimated from the bootstrap sampling distribution compare to those estimated mathematically as part of lm() function?
+
+bootstrap:
+se_beta0 = 0.6165899
+se_beta1 = 0.07880122
+
+lm() function
+
+se_beta0 = 0.67293459
+se_beta1 = 0.08487709
+
+They standard erros calculated from the lm() function are very similar to those derived from bootstrapping.
+
+How do you bootstrap CIs compare to those estimated mathematically as part of the lm() function?
+
+bootstrap:
+beta1_upr_ci = 1.195263
+beta1_lwr_ci = 0.8920778
+
+lm():
+beta1_upr_ci = 1.204292
+beta1_lwr_ci = 0.8685707
+
+bootstrap:
+beta0_upr_ci = -8.34653 
+beta0_lwr_ci = -10.75408
+
+lm()
+beta0_upr_ci = -8.110374
+beta0_lwr_ci = -10.7720889
+
+The confidence intervals calculated from the lm() function are similar to those derived from bootstrapping.
+
+
 
 # Challenge 3
 
@@ -289,45 +333,86 @@ Use your function to run the following models on the “KamilarAndCooperData.csv
     log(DayLength_km) ~ log(Body_mass_female_mean)
     log(HomeRange_km2) ~ log(Body_mass_female_mean) + MeanGroupSize
 
-```{r}
+#```{r}
 
   boot_lm <- function(d, model, conf.level = 0.95, reps = 1000) {
   
   og <- lm(d, formula = model)
-  results <- tidy(og) %>% pull(estimate)
-  names(results) <- tidy(og)$term
+  lm_results <- tidy(og, conf.int = TRUE, conf.level = .95) %>% 
+  select(term, estimate, std.error, conf.low, conf.high)
 
-
+        
+  
 boot <- tibble() 
 
 for (i in 1:reps) {
   s <- sample_n(d, size = nrow(d), replace = TRUE)
-  boot_fit <- lm(s, formula = model)
-  tidy <- tidy(boot_fit) %>% pull(estimate)
-  names(results) <- tidy(boot_fit)$term
-  boot <- bind_rows(boot, results)
+  fit <- lm(s, formula = model)
+  tidy <- tidy(fit) %>% pull(estimate) -> results
+ names(results) <- tidy(fit)$term
+ boot <- bind_rows(boot, results)
 }
+
+names(boot) <- c("beta0", "beta1")
+
+se_beta0 <- sd(boot$beta0)
+se_beta1 <- sd(boot$beta1)
+
+beta1_upr_ci <- quantile(boot$beta1, 0.975)
+beta1_lwr_ci <- quantile(boot$beta1, 0.025)
+
+beta0_upr_ci <- quantile(boot$beta0, 0.975)
+beta0_lwr_ci <- quantile(boot$beta0, 0.025)
+
+
+
+boot_results <- cbind(boot$beta0, se_beta0, beta0_lwr_ci, beta0_upr_ci, boot$beta1, se_beta1, beta1_lwr_ci, beta1_upr_ci)
+
+final <- cbind(lm_results, boot_results)
+
 
 return(boot)
 
 }
 
-
-  
-  
-  
-  
-
-
 ```
+  
+  names(boot) <- c("beta0", "beta1")
+
+se_beta0 <- sd(boot$beta0)
 
 
-```{r}
-
-#m <- boot_lm(k, log(MaxLongevity_m) ~ log(Brain_Size_Species_Mean))
-#tidy(m)
+se_beta1 <- sd(boot$beta1)
 
 
+se(boot$beta1)
+
+percent_ci <- 95
+alpha <- 0.05
+
+lower_ci <- mean(boot$beta0) + qnorm(alpha / 2) * se_beta0
+
+
+upper_ci <- mean(boot$beta1) + qnorm(alpha / 2) * se_beta1
+    
+  tidy <- tidy(boot_fit) %>% pull(estimate)
+  names(results) <- tidy(boot_fit)$term
+  boot <- bind_rows(boot, results)
+
+
+
+
+
+#```{r}
+
+m <- boot_lm(k, log(MaxLongevity_m) ~ log(Brain_Size_Species_Mean))
+tidy(m)
+a <-  log(HomeRange_km2) ~ log(Body_mass_female_mean)
+tidy(a)
+b <-  log(DayLength_km) ~ log(Body_mass_female_mean)
+tidy(b)
+c <-  log(HomeRange_km2) ~ log(Body_mass_female_mean) + MeanGroupSize
+tidy(c)
 
 
 ```
